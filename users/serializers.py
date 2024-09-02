@@ -22,3 +22,8 @@ class UserSignUpSerializer(serializers.ModelSerializer):
         user.set_password(self.validated_data.get("password"))
         user.save()
         return user
+    
+class UserLogInSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(required=True)
+    
