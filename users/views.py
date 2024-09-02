@@ -4,6 +4,7 @@ from django.contrib.auth import authenticate
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import UserSignUpSerializer, UserLogInSerializer
+from rest_framework.permissions import IsAuthenticated
 
 class UserSignupView(generics.GenericAPIView):
     serializer_class = UserSignUpSerializer
@@ -39,3 +40,29 @@ class UserLogInView(generics.GenericAPIView):
             'access': str(access),
         }, status=status.HTTP_200_OK)
     
+class UserLogOutView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh_token"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            return Response(status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        
+class RefreshTokenView(generics.GenericAPIView):
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh_token"]
+            token = RefreshToken(refresh_token)
+            access = token.access_token
+
+            return Response({
+                'access': str(access),
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
