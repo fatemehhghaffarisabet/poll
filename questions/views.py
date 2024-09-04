@@ -1,8 +1,10 @@
 from django.shortcuts import get_object_or_404
-from .models import Question, Choice
+from .models import Question, Choice, Answer
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from django.db.models import *
 from rest_framework.permissions import IsAuthenticated
 from .serializer import QuestionSerializer, ChoiceSerializer
 
@@ -92,3 +94,55 @@ class ChoiceView(generics.GenericAPIView):
       choice = get_object_or_404(Choice, pk=pk, question__user=request.user)
       choice.delete()
       return Response(status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def vote(request, question_id, choice_id):
+    question = get_object_or_404(Question, pk=question_id, is_open=True)
+    choice = get_object_or_404(Choice, pk=choice_id)
+    votes = Answer.objects.filter(user=request.user, question__id=question_id)
+    if not votes.exists():
+        Answer.objects.create(user=request.user, question=question, choice=choice)
+        return Response(status=status.HTTP_200_OK)
+    return Response({'message': 'you aleardy vote for this question'}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def unvote(request, question_id, choice_id):
+    question = get_object_or_404(Question, pk=question_id, is_open=True)
+    choice = get_object_or_404(Choice, pk=choice_id)
+    vote = Answer.objects.filter(user=request.user, question=question, choice=choice)
+    if vote.exists():
+        vote.delete()
+        return Response(status=status.HTTP_200_OK)
+    return Response({'message': 'you have not vote for this question'}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def vote_detail(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    answers = Answer.objects.filter(user=request.user, question=question)
+    if not answers.exists():
+        return Response({'vote': -1}, status=status.HTTP_200_OK)
+    vote = answers.first()
+    return Response({'vote': vote.choice.id}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_status(request, question_id):
+    question = get_object_or_404(Question, pk=question_id, user=request.user)
+    question.is_open = ~F('is_open')
+    question.save()
+    return Response({'message': 'question status is change'}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def see_result(request, question_id):
+    get_object_or_404(Question, pk=question_id)
+    choices = Choice.objects.filter(question__id=question_id)
+    result = dict()
+    for choice in choices:
+        votes = Answer.objects.filter(choice=choice).count()
+        result[choice.id] = votes
+
+    return Response(result, status=status.HTTP_200_OK)
